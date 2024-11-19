@@ -1,7 +1,7 @@
-import { Context, Hono } from "hono";
-import { cors } from "hono/cors";
-import { logger } from "hono/logger";
-import { poweredBy } from "hono/powered-by";
+import { Context, Hono } from "@hono/hono";
+import { cors } from "@hono/hono/cors";
+import { logger } from "@hono/hono/logger";
+import { poweredBy } from "@hono/hono/powered-by";
 
 const app = new Hono();
 
@@ -39,6 +39,6 @@ v1Api.post("/headline", async (c: Context) => {
   return c.json({ transformedText });
 });
 
-app.route("/api/v1", v1Api);
+app.route("/v1", v1Api);
 
 Deno.serve(app.fetch);
