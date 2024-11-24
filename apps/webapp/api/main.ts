@@ -4,8 +4,26 @@ import { logger } from "@hono/hono/logger";
 import { poweredBy } from "@hono/hono/powered-by";
 import { serveStatic } from "@hono/hono/serve-static";
 import { trimTrailingSlash } from '@hono/hono/trailing-slash'
+import { Client } from "https://deno.land/x/postgres/mod.ts";
 
 const app = new Hono();
+
+const dbClient = new Client({
+  user: Deno.env.get("POSTGRES_USER"),
+  database: Deno.env.get("POSTGRES_DB"),
+  hostname: "postgres",
+  port: 5432,
+  password: Deno.env.get("POSTGRES_PASSWORD"),
+});
+
+app.use("/api/*", async (c, next) => {
+  try {
+    await dbClient.connect();
+    await next();
+  } finally {
+    await dbClient.end();
+  }
+});
 
 app.use("*", logger(), poweredBy());
 app.use(
@@ -26,6 +44,11 @@ app.get("/api", (c: Context) => {
   return c.text("Hello Deno!");
 });
 
+app.get("/api/db-test", async (c: Context) => {
+  const result = await dbClient.queryArray("SELECT * FROM information_schema.tables");
+  return c.json(result.rows);
+});
+
 const v1Api = new Hono();
 
 const transformHeadline = (headline: string): Promise<string> => {
@@ -37,7 +60,7 @@ const transformHeadline = (headline: string): Promise<string> => {
   });
 };
 
-v1Api.post("/api/headline", async (c: Context) => {
+v1Api.post("/headline", async (c: Context) => {
   const { headline } = await c.req.json();
 
   const transformedText = await transformHeadline(headline);
