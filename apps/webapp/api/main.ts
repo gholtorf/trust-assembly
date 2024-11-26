@@ -37,7 +37,7 @@ const transformHeadline = (headline: string): Promise<string> => {
   });
 };
 
-v1Api.post("/api/headline", async (c: Context) => {
+v1Api.post("/headline", async (c: Context) => {
   const { headline } = await c.req.json();
 
   const transformedText = await transformHeadline(headline);
