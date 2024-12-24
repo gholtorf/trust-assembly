@@ -49,10 +49,6 @@ npm run build
     * The extension should now appear in your list with the name "Headline Stylistic Transformer".
     * Ensure there are no errors during loading.
   
-### Other browsers
-
-Some browsers require mutually incompatible code in order to run.  To use the extension on the Firefox or Edge browsers, use the firefox branch (i.e. git checkout firefox).
-
 
 #### Test the Extension
 
