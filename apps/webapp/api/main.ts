@@ -55,6 +55,52 @@ app.get("/api/parsedArticle", async (c) => {
   return c.json(parsed);
 });
 
+app.get("/api/transformedHeadline", async (c) => {
+  const url = c.req.query("url");
+  const author = c.req.query("author");
+
+  if (!url || !author) {
+    c.status(400);
+    return c.json({ error: "URL and author are required" });
+  }
+
+  try {
+    // First parse the article
+    const parsed = await extract(url);
+    if (!parsed || !parsed.title || !parsed.content) {
+      c.status(400);
+      return c.json({ error: "Could not parse article" });
+    }
+
+    // Prepare the command to transform the headline
+    const command = new Deno.Command("transform-headline", {
+      args: [
+        "--headline", parsed.title,
+        "--author", author,
+        "--body", parsed.content,
+        "--output-format", "json",
+        "--provider", "test"
+      ]
+    });
+
+    // Run the command and get the output
+    const { stdout, stderr, success } = await command.output();
+
+    if (!success) {
+      const errorMessage = new TextDecoder().decode(stderr);
+      c.status(500);
+      return c.json({ error: `Headline transformation failed: ${errorMessage}` });
+    }
+
+    // Parse the JSON output from the command
+    const result = JSON.parse(new TextDecoder().decode(stdout));
+    return c.json(result);
+  } catch (error) {
+    c.status(500);
+    return c.json({ error: `Error processing request: ${error.message}` });
+  }
+});
+
 app.get("/api/db-test", async (c) => {
   const dbClient = c.var.db;
   const result = await dbClient.getAllCreatorEdits("https://www.cnn.com/2024/12/05/politics/john-roberts-transgender-skrmetti-analysis");
