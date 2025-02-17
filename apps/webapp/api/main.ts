@@ -16,45 +16,6 @@ type Env = {
 
 const app = new Hono<Env>();
 
-const dbMiddleware = createMiddleware(async (c, next) => {
-  using db = await BasicDbRepo.create();
-  c.set('db', db);
-  await next()
-})
-
-app.use("/api/*", dbMiddleware);
-
-const corsPolicy = cors({
-  origin: ["*"], // TODO: Change this to trust-assembly.org, or whatever URL we're using frontend URL
-  allowMethods: ["POST", "GET", "OPTIONS"],
-  allowHeaders: ["Content-Type"],
-  exposeHeaders: ["Content-Length"],
-  maxAge: 600,
-  credentials: true,
-});
-
-app.use("*", logger(), poweredBy());
-app.use(
-  "*",
-  corsPolicy,
-);
-
-app.use(trimTrailingSlash());
-
-app.get("/api", (c) => {
-  return c.text("Hello Deno!");
-});
-
-app.get("/api/parsedArticle", async (c) => {
-  const url = c.req.query("url");
-  if (!url) {
-    c.status(400);
-    return c.json({ error: "URL is required" });
-  }
-  const parsed = await extract(url);
-  return c.json(parsed);
-});
-
 app.get("/api/transformedHeadline", async (c) => {
   const url = c.req.query("url");
   const author = c.req.query("author");
@@ -99,6 +60,45 @@ app.get("/api/transformedHeadline", async (c) => {
     c.status(500);
     return c.json({ error: `Error processing request: ${error.message}` });
   }
+});
+
+const dbMiddleware = createMiddleware(async (c, next) => {
+  using db = await BasicDbRepo.create();
+  c.set('db', db);
+  await next()
+})
+
+app.use("/api/*", dbMiddleware);
+
+const corsPolicy = cors({
+  origin: ["*"], // TODO: Change this to trust-assembly.org, or whatever URL we're using frontend URL
+  allowMethods: ["POST", "GET", "OPTIONS"],
+  allowHeaders: ["Content-Type"],
+  exposeHeaders: ["Content-Length"],
+  maxAge: 600,
+  credentials: true,
+});
+
+app.use("*", logger(), poweredBy());
+app.use(
+  "*",
+  corsPolicy,
+);
+
+app.use(trimTrailingSlash());
+
+app.get("/api", (c) => {
+  return c.text("Hello Deno!");
+});
+
+app.get("/api/parsedArticle", async (c) => {
+  const url = c.req.query("url");
+  if (!url) {
+    c.status(400);
+    return c.json({ error: "URL is required" });
+  }
+  const parsed = await extract(url);
+  return c.json(parsed);
 });
 
 app.get("/api/db-test", async (c) => {

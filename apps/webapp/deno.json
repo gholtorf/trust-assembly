@@ -1,5 +1,5 @@
 {
   "imports": {
-    "@hono/hono": "jsr:@hono/hono@^4.6.10"
+    "@hono/hono": "jsr:@hono/hono@^4.7.1"
   }
 }
