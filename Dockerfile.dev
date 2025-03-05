@@ -51,4 +51,6 @@ RUN pipx install /tmp/*.whl && \
     pipx ensurepath && \
     rm /tmp/*.whl
 
+ENV PATH="/root/.local/bin:$PATH"
+
 RUN deno install

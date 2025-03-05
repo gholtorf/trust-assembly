@@ -44,6 +44,9 @@ COPY --from=transform_builder /headline_transform/headline_transform/dist/*.whl 
 RUN pipx install /tmp/*.whl && \
     pipx ensurepath && \
     rm /tmp/*.whl
+
+ENV PATH="/root/.local/bin:$PATH"
+
 RUN deno install
 
 # Compile the main app so that it doesn't need to be compiled each startup/entry.
