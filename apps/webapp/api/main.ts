@@ -40,7 +40,7 @@ app.get("/api/transformedHeadline", async (c) => {
         "--author", author,
         "--body", parsed.content,
         "--output-format", "json",
-        "--provider", "test"
+        "--provider", "openai"
       ]
     });
 
