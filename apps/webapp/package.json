@@ -1,36 +1,51 @@
 {
-  "name": "trust-assembly",
-  "private": true,
+  "name": "todos-express-google",
   "version": "0.0.0",
-  "type": "module",
+  "private": true,
+  "description": "Todo app using Express and Passport for sign in with Google.",
+  "keywords": [
+    "example",
+    "express",
+    "passport",
+    "sqlite"
+  ],
+  "author": {
+    "name": "Jared Hanson",
+    "email": "jaredhanson@gmail.com",
+    "url": "https://www.jaredhanson.me/"
+  },
+  "homepage": "https://github.com/passport/todos-express-google",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/passport/todos-express-google.git"
+  },
+  "bugs": {
+    "url": "https://github.com/passport/todos-express-google/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/jaredhanson"
+  },
+  "license": "Unlicense",
   "scripts": {
-    "dev": "deno task dev:api & deno task dev:vite",
-    "dev:api": "deno run --allow-env --allow-run --allow-net --allow-read api/main.ts",
-    "dev:vite": "deno run -A npm:vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "serve": "deno task build && deno task dev:api"
+    "start": "node ./bin/www"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.60.5",
-    "@extractus/article-extractor": "^8.0.16",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-error-boundary": "^4.1.2",
-    "react-router-dom": "^6.28.0"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.13.0",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.3",
-    "eslint": "^9.13.0",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "eslint-plugin-react-refresh": "^0.4.14",
-    "globals": "^15.11.0",
-    "typescript": "~5.6.2",
-    "typescript-eslint": "^8.11.0",
-    "vite": "^5.4.10"
+    "connect-ensure-login": "^0.1.1",
+    "connect-sqlite3": "^0.9.13",
+    "cookie-parser": "~1.4.4",
+    "csurf": "^1.11.0",
+    "debug": "~2.6.9",
+    "dotenv": "^8.6.0",
+    "ejs": "~2.6.1",
+    "express": "~4.16.1",
+    "express-session": "^1.17.2",
+    "http-errors": "~1.6.3",
+    "mkdirp": "^1.0.4",
+    "morgan": "~1.9.1",
+    "passport": "^0.6.0",
+    "passport-google-oidc": "^0.1.0",
+    "pluralize": "^8.0.0",
+    "sqlite3": "^5.0.2"
   }
 }
