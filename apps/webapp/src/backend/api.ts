@@ -11,6 +11,29 @@ export async function getParsedArticle(url: string): Promise<ArticleData | null>
   return await response.json();
 }
 
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export async function getUser(): Promise<User | null> {
+  const response = await makeRequest('GET', '/api/user');
+  if (response.status === 401) {
+    return null;
+  }
+  return await response.json();
+}
+
+export async function login(token: string): Promise<User> {
+  const response = await makeRequest(
+    'POST',
+    '/api/login',
+    { token }
+  );
+  return await response.json();
+}
+
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
 function makeRequest(method: HttpMethod, url: string, data?: any): Promise<Response> {

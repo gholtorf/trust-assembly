@@ -1,4 +1,4 @@
-import { Hono } from "@hono/hono";
+import { Context, Hono, MiddlewareHandler } from "@hono/hono";
 import { cors } from "@hono/hono/cors";
 import { logger } from "@hono/hono/logger";
 import { poweredBy } from "@hono/hono/powered-by";
@@ -7,14 +7,71 @@ import { serveStatic } from "@hono/hono/serve-static";
 import { trimTrailingSlash } from '@hono/hono/trailing-slash'
 import { createMiddleware } from '@hono/hono/factory'
 import BasicDbRepo from "./basicDbRepo.ts";
+import transformHeadline from "./cliInterface.ts";
+import { 
+  Session,
+  sessionMiddleware, 
+  CookieStore 
+} from 'jsr:@jcs224/hono-sessions'
+import { authenticateToken, JwtDecodeError, JwtVerificationError } from "./auth.ts";
+
+type SessionData = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  }
+};
 
 type Env = {
   Variables: {
-    db: BasicDbRepo
+    db: BasicDbRepo;
+    session: Session<SessionData>;
+    session_key_rotation: boolean;
   },
 };
 
 const app = new Hono<Env>();
+
+const corsPolicy = cors({
+  origin: ["*"], // TODO: Change this to trust-assembly.org, or whatever URL we're using frontend URL
+  allowMethods: ["POST", "GET", "OPTIONS"],
+  allowHeaders: ["Content-Type"],
+  exposeHeaders: ["Content-Length"],
+  maxAge: 600,
+  credentials: true,
+});
+
+// Middleware for the routes must be defined before the routes
+app.use("*", logger(), poweredBy());
+app.use(
+  "*",
+  corsPolicy,
+);
+
+const store = new CookieStore()
+const sessionMiddlewareHanlder = sessionMiddleware({
+  store,
+  encryptionKey: 'password_at_least_32_characters_long', // TODO: change this to a secure key
+  expireAfterSeconds: 900, // Expire session after 15 minutes of inactivity
+  cookieOptions: {
+    sameSite: 'Lax',
+    path: '/', // Required for this library to work properly
+    httpOnly: true, // Recommended to avoid XSS attacks
+  },
+}) as unknown as MiddlewareHandler<Env, string, {}>;
+
+app.use('/api/*', sessionMiddlewareHanlder);
+
+const dbMiddleware = createMiddleware(async (c, next) => {
+  using db = await BasicDbRepo.create();
+  c.set('db', db);
+  await next()
+});
+
+app.use("/api/*", dbMiddleware);
+
+app.use(trimTrailingSlash());
 
 app.get("/api/transformedHeadline", async (c) => {
   const url = c.req.query("url");
@@ -33,59 +90,21 @@ app.get("/api/transformedHeadline", async (c) => {
       return c.json({ error: "Could not parse article" });
     }
 
-    // Prepare the command to transform the headline
-    const command = new Deno.Command("transform-headline", {
-      args: [
-        "--headline", parsed.title,
-        "--author", author,
-        "--body", parsed.content,
-        "--output-format", "json",
-        "--provider", "openai"
-      ]
+    // Then transform the headline
+    const result = await transformHeadline({
+      title: parsed.title,
+      author,
+      content: parsed.content,
     });
 
-    // Run the command and get the output
-    const { stdout, stderr, success } = await command.output();
-
-    if (!success) {
-      const errorMessage = new TextDecoder().decode(stderr);
-      c.status(500);
-      return c.json({ error: `Headline transformation failed: ${errorMessage}` });
-    }
-
-    // Parse the JSON output from the command
-    const result = JSON.parse(new TextDecoder().decode(stdout));
+    // Return the result
     return c.json(result);
   } catch (error) {
     c.status(500);
-    return c.json({ error: `Error processing request: ${error.message}` });
+    console.error(error);
+    return c.json({ error: "Error processing request" });
   }
 });
-
-const dbMiddleware = createMiddleware(async (c, next) => {
-  using db = await BasicDbRepo.create();
-  c.set('db', db);
-  await next()
-})
-
-app.use("/api/*", dbMiddleware);
-
-const corsPolicy = cors({
-  origin: ["*"], // TODO: Change this to trust-assembly.org, or whatever URL we're using frontend URL
-  allowMethods: ["POST", "GET", "OPTIONS"],
-  allowHeaders: ["Content-Type"],
-  exposeHeaders: ["Content-Length"],
-  maxAge: 600,
-  credentials: true,
-});
-
-app.use("*", logger(), poweredBy());
-app.use(
-  "*",
-  corsPolicy,
-);
-
-app.use(trimTrailingSlash());
 
 app.get("/api", (c) => {
   return c.text("Hello Deno!");
@@ -107,6 +126,58 @@ app.get("/api/db-test", async (c) => {
   return c.json(result);
 });
 
+app.get("/api/user", (c) => {
+  const session = c.var.session;
+  const user = session.get('user');
+  if (!user) {
+    c.status(401);
+    return c.json({ error: "Unauthorized" });
+  }
+
+  return c.json(user);
+});
+
+app.post("/api/login", async (c) => {
+  const { token } = await c.req.json();
+
+  if (!token) {
+    c.status(400);
+    return c.json({ error: "Token is required" });
+  }
+
+  try {
+    const payload = await authenticateToken(token);
+
+    // TODO: replace with query to users table
+    const user = {
+      id: payload.sub,
+      name: payload.name,
+      email: payload.email,
+    };
+  
+    const session = c.var.session;
+    session.set('user', user);
+    return c.json(user);
+  } catch (e) {
+    const error = e instanceof Error ? e : new Error(String(e));
+
+    if (e instanceof JwtDecodeError) {
+      c.status(400);
+      return c.json({ error: `Invalid token: ${error.message}` });
+    }
+
+    c.status(401);
+    
+    if (e instanceof JwtVerificationError) {
+      return c.json({ error: `Signature invalid: ${error.message}` });
+    }
+
+    return c.json({ error: `Unauthorized: ${error.message}` });
+  }
+
+
+});
+
 const v1Api = new Hono<Env>();
 v1Api.use(
   "*",
@@ -122,7 +193,7 @@ function cleanUrl(url: string) {
   return url.replace(/\/(index.html)?\/?$/, "");
 }
 
-v1Api.post("/headlines", async (c) => {
+v1Api.post("/headlines", async (c: Context) => {
   const { url } = await c.req.json();
   const dbClient = c.var.db;
 
@@ -132,7 +203,7 @@ v1Api.post("/headlines", async (c) => {
 
 app.route("/api/v1", v1Api);
 
-app.use("/api/*", async (c) => {
+app.use("/api/*", async (c: Context) => {
   c.status(404);
   return c.json({ error: "Not found" });
 });
