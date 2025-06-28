@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useSession } from "@/contexts/SessionProvider";
 import Logo from "./Logo";
+import Modal from "./Modal";
+import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
 
 // built from the tailwind example https://tailwindcss.com/plus/ui-blocks/application-ui/navigation/navbars
 
@@ -8,11 +10,12 @@ type NavbarProps = React.ComponentProps<'nav'>;
 
 export default function Navbar(props: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const session = useSession();
 
   return (
     <nav {...props}>
-      <div className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
+      <div className="">
         <div className="relative flex h-16 items-center justify-between">
           <div className="absolute inset-y-0 left-0 flex items-center sm:hidden">
             <button
@@ -46,7 +49,11 @@ export default function Navbar(props: NavbarProps) {
                 {session.type === "loggedIn" ? (
                   <span>{session.user.name}</span>
                 ) : (
-                  <button type="button" className="relative inline-flex items-center rounded-md bg-primary-blue px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 focus:outline-hidden focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800">
+                  <button
+                    type="button"
+                    className="relative inline-flex items-center rounded-md bg-primary-blue px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 focus:outline-hidden focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
+                    onClick={() => setIsLoginModalOpen(true)}
+                  >
                     <span className="absolute -inset-1.5"></span>
                     <span className="sr-only">Login</span>
                     Login
@@ -65,6 +72,24 @@ export default function Navbar(props: NavbarProps) {
           </div>
         </div>
       )}
+      <Modal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)}>
+        <GoogleOAuthProvider clientId={"866724834732-5qma1gh7ns35hqg92oamrqgjlq8dbt77.apps.googleusercontent.com"}>
+          {
+            session.type === "loggedIn" ? (
+              <h1 className="text-lg font-semibold">Hello, {session.user.name}!</h1>
+            ) : (
+              <GoogleLogin
+                onSuccess={credentialResponse => {
+                  session.login(credentialResponse.credential!);
+                }}
+                onError={() => {
+                  console.log('Login Failed');
+                }}
+              />
+            )
+          }
+        </GoogleOAuthProvider>
+      </Modal>
     </nav>
   );
 };
