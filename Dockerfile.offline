@@ -1,0 +1,104 @@
+# Multi-stage offline Dockerfile
+# Stage 1: Download and cache all dependencies
+FROM denoland/deno:2.1.1 AS dependency_cache
+
+WORKDIR /cache
+
+# Cache Deno dependencies
+RUN deno install --allow-read --allow-write --allow-net -f https://deno.land/x/nessie/cli.ts --global
+
+# Copy Deno configuration and cache dependencies
+COPY ./apps/webapp/deno.json ./apps/webapp/deno.lock ./
+RUN deno cache --reload https://deno.land/x/nessie/cli.ts
+
+# Cache additional JSR dependencies
+RUN deno cache --reload \
+    "jsr:@hono/hono@4.8.3" \
+    "jsr:@jcs224/hono-sessions@0.7.2" \
+    "jsr:@panva/jose@6.0.11"
+
+# Cache npm dependencies (for Vite)
+COPY ./apps/webapp/package.json ./apps/webapp/package-lock.json* ./
+RUN deno install && deno cache npm:vite npm:typescript
+
+# Stage 2: Python dependency cache
+FROM python:3.9-alpine AS python_cache
+
+WORKDIR /python_cache
+
+# Install build tools and cache pip packages
+RUN pip install --no-cache-dir pip setuptools wheel build
+
+# Create a local pip cache
+COPY headline_transform/pyproject.toml ./
+RUN pip download --dest /python_cache/wheels openai pip setuptools wheel build
+
+# Stage 3: Migrator stage (offline)
+FROM denoland/deno:2.1.1 AS migrator
+
+WORKDIR /migrate
+
+# Copy cached Deno installation
+COPY --from=dependency_cache /root/.deno /root/.deno
+COPY --from=dependency_cache /root/.cache/deno /root/.cache/deno
+
+ARG POSTGRES_HOST
+ENV POSTGRES_HOST=$POSTGRES_HOST
+
+COPY ./apps/webapp/api/nessie.config.ts .
+COPY ./apps/webapp/api/db ./db
+
+# Use cached nessie CLI (no internet required)
+ENV PATH="/root/.deno/bin:$PATH"
+
+# Stage 4: Transform builder (offline)
+FROM python:3.9-alpine AS transform_builder
+
+WORKDIR /headline_transform
+
+# Copy cached wheels
+COPY --from=python_cache /python_cache/wheels /tmp/wheels
+
+# Install from local cache only (no internet)
+RUN pip install --no-index --find-links /tmp/wheels pip setuptools wheel build
+
+# Copy headline_transform source
+COPY headline_transform/ headline_transform/
+
+# Build package
+RUN cd headline_transform && python -m build --wheel
+
+# Stage 5: Main application (offline)
+FROM denoland/deno:2.1.1
+
+EXPOSE 8000
+
+WORKDIR /app
+
+# Install pipx without internet (using apt cache)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends pipx && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy cached Deno installation and dependencies
+COPY --from=dependency_cache /root/.deno /root/.deno
+COPY --from=dependency_cache /root/.cache/deno /root/.cache/deno
+
+# Copy Python wheels and cached pip packages
+COPY --from=python_cache /python_cache/wheels /tmp/wheels
+
+# Copy application files
+COPY ./apps/webapp/ .
+
+# Install headline_transform package from local wheel
+COPY --from=transform_builder /headline_transform/headline_transform/dist/*.whl /tmp/
+RUN pip install --no-index --find-links /tmp/wheels /tmp/*.whl && \
+    rm /tmp/*.whl /tmp/wheels -rf
+
+ENV PATH="/root/.local/bin:/root/.deno/bin:$PATH"
+
+# Cache Deno dependencies (already cached, just link)
+RUN deno install --offline || deno install
+
+# Optional: pre-compile main app
+# RUN deno cache --offline api/main.ts || echo "Pre-compilation skipped"

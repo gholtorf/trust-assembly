@@ -3,5 +3,12 @@
     "@hono/hono": "jsr:@hono/hono@^4.8.3",
     "@jcs224/hono-sessions": "jsr:@jcs224/hono-sessions@^0.7.2",
     "@panva/jose": "jsr:@panva/jose@6.0.11"
+  },
+  "tasks": {
+    "dev:api": "deno run --allow-env --allow-run --allow-net --allow-read api/main.ts",
+    "dev:vite": "deno run -A npm:vite",
+    "dev": "deno task dev:api & deno task dev:vite",
+    "build": "tsc -b && vite build",
+    "serve": "deno task build && deno task dev:api"
   }
 }
