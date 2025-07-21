@@ -2,6 +2,7 @@ import { Hono } from "@hono/hono";
 import { Env } from "./env.ts";
 import { extract } from "@extractus/article-extractor";
 import transformHeadline from "./cliInterface.ts";
+import BasicDbRepo from "./basicDbRepo.ts";
 
 const app = new Hono<Env>()
   .get("/transformedHeadline", async (c) => {
@@ -27,6 +28,23 @@ const app = new Hono<Env>()
         author,
         content: parsed.content,
       });
+
+      // Persist to database for later retrieval
+      try {
+        const db = c.var.db as BasicDbRepo;
+
+        // Clean URL to ensure uniqueness (same logic as v1Api)
+        const cleanUrl = url.replace(/\/(index.html)?\/?$/, "");
+
+        const articleId = await db.getOrCreateArticle(cleanUrl, parsed.title);
+        const creatorId = await db.getOrCreateCreator(author);
+
+        await db.insertArticleEdit(articleId, creatorId, result.transformedHeadline);
+      } catch (dbErr) {
+        // Non-fatal – log but continue returning the transformation so the
+        // extension can still function even if persistence fails.
+        console.error("Error persisting headline transformation", dbErr);
+      }
 
       // Return the result
       return c.json(result);

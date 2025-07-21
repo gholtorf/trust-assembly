@@ -67,6 +67,44 @@ export default class BasicDbRepo {
     return newUser;
   }
 
+  async getOrCreateArticle(url: string, headline: string): Promise<number> {
+    // Try to get existing article id
+    const existing = await this.client.queryArray<[number]>`
+      SELECT id FROM articles WHERE url = ${url} LIMIT 1;
+    `;
+    const row = existing.rows[0];
+    if (row) {
+      return row[0] as unknown as number;
+    }
+
+    // Insert new article and return id
+    const inserted = await this.client.queryArray<[number]>`
+      INSERT INTO articles (url, headline) VALUES (${url}, ${headline}) RETURNING id;
+    `;
+    return inserted.rows[0][0] as unknown as number;
+  }
+
+  async getOrCreateCreator(name: string): Promise<number> {
+    const existing = await this.client.queryArray<[number]>`
+      SELECT id FROM creators WHERE name = ${name} LIMIT 1;
+    `;
+    const row = existing.rows[0];
+    if (row) {
+      return row[0] as unknown as number;
+    }
+
+    const inserted = await this.client.queryArray<[number]>`
+      INSERT INTO creators (name) VALUES (${name}) RETURNING id;
+    `;
+    return inserted.rows[0][0] as unknown as number;
+  }
+
+  async insertArticleEdit(articleId: number, creatorId: number, headline: string): Promise<void> {
+    await this.client.queryArray`
+      INSERT INTO article_edits (article_id, creator_id, headline) VALUES (${articleId}, ${creatorId}, ${headline});
+    `;
+  }
+
   [Symbol.dispose]() {
     this.client.end();
   }
