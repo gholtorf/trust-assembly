@@ -14,6 +14,7 @@ import sessions from "./sessions.ts";
 import test from "./test.ts";
 import replacements from "./replacements.ts";
 import transformations from "./transformations.ts";
+import automation from "./automation.ts";
 import v1Api from "./v1Api.ts";
 import { Env } from "./env.ts";
 
@@ -51,6 +52,7 @@ const apiApp = new Hono<Env>()
   .route("/", transformations)
   .route("/test", test)
   .route("/replacements", replacements)
+  .route("/automation", automation)
   .route("/v1", v1Api)
   .get("/", (c) => {
     return c.text("Hello Deno!");

@@ -7,6 +7,7 @@ import ParsedArticle from "./ParsedArticle";
 import SessionProvider from "./contexts/SessionProvider";
 import Index from "./Index";
 import Replacements from "./Replacements";
+import AutomationDashboard from "./components/AutomationDashboard";
 
 function App() {
   const queryClient = new QueryClient({
@@ -27,6 +28,7 @@ function App() {
               <Route path="/hello" element={<Hello />} />
               <Route path="/parsedArticle" element={<ParsedArticle />} />
               <Route path="/replacements" element={<Replacements />} />
+              <Route path="/automation" element={<AutomationDashboard />} />
             </Routes>
           </BrowserRouter>
         </SessionProvider>
