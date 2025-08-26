@@ -8,6 +8,9 @@ let currentUrl: string | undefined = undefined;
 let selectedAuthor: string | undefined;
 let selectedHeadline: string | undefined;
 
+// constants for new-headline view
+const MAX_HEADLINE_LENGTH = 120;
+
 type ButtonDisplayState = 'none' | 'retrive' | 'toggle';
 
 // popup elements
@@ -16,6 +19,23 @@ const toggleButton = document.getElementById('toggle-transform');
 const selectElement = document.getElementById(
   'transform-select',
 ) as HTMLSelectElement;
+
+// elements for new-headline view
+const replaceHeadlineButton = document.getElementById('replace-headline');
+const newHeadlineView = document.getElementById('new-headline-view');
+const newHeadlineForm = document.getElementById('new-headline-form') as HTMLFormElement | null;
+const nhOriginal = document.getElementById('nh-original') as HTMLTextAreaElement | null;
+const nhReplacement = document.getElementById('nh-replacement') as HTMLTextAreaElement | null;
+const nhOriginalCount = document.getElementById('nh-original-count');
+const nhReplacementCount = document.getElementById('nh-replacement-count');
+const nhOriginalError = document.getElementById('nh-original-error');
+const nhReplacementError = document.getElementById('nh-replacement-error');
+const nhCitationsContainer = document.getElementById('nh-citations');
+const nhCitationsError = document.getElementById('nh-citations-error');
+const nhCancel = document.getElementById('nh-cancel');
+
+type Citation = { url: string; explanation: string };
+let citations: Citation[] = [{ url: '', explanation: '' }];
 
 // set current url
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -59,6 +79,34 @@ retrieveButton?.addEventListener('click', async () => {
 
 toggleButton?.addEventListener('click', async () => {
   await toggleHeadline();
+});
+
+// new-headline: open form
+replaceHeadlineButton?.addEventListener('click', () => {
+  openNewHeadlineView();
+});
+
+// new-headline: cancel
+nhCancel?.addEventListener('click', () => {
+  closeNewHeadlineView();
+});
+
+// new-headline: live counts
+nhOriginal?.addEventListener('input', () => updateCountsAndErrors());
+nhReplacement?.addEventListener('input', () => updateCountsAndErrors());
+
+// new-headline: submit
+newHeadlineForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const errors = validateNewHeadlineForm();
+  if (Object.keys(errors).length === 0) {
+    // mimic NewHeadline.tsx behavior: just log the values
+    console.log({
+      originalHeadline: nhOriginal?.value ?? '',
+      replacementHeadline: nhReplacement?.value ?? '',
+      citations: citations,
+    });
+  }
 });
 
 const STORED_DATA = 'storedHeadlineData';
@@ -137,5 +185,152 @@ function setButtonDisplayState(state: ButtonDisplayState): void {
       retrieveButton!.style.display = 'none';
       toggleButton!.style.display = 'block';
       break;
+  }
+}
+
+// =========================
+// New Headline view helpers
+// =========================
+
+function openNewHeadlineView(): void {
+  // hide transform controls
+  selectElement.style.display = 'none';
+  retrieveButton && (retrieveButton.style.display = 'none');
+  toggleButton && (toggleButton.style.display = 'none');
+  replaceHeadlineButton && (replaceHeadlineButton.style.display = 'none');
+
+  // initialize fields similar to NewHeadline defaults
+  if (nhOriginal) nhOriginal.value = 'New Study Proves Coffee Cures Cancer';
+  if (nhReplacement)
+    nhReplacement.value =
+      'Study Finds Correlation Between Coffee Consumption and Lower Risk of Certain Cancers';
+  citations = [{ url: '', explanation: '' }];
+  renderCitations();
+  updateCountsAndErrors(true);
+
+  // show view
+  if (newHeadlineView) newHeadlineView.style.display = 'block';
+}
+
+function closeNewHeadlineView(): void {
+  // hide view
+  if (newHeadlineView) newHeadlineView.style.display = 'none';
+
+  // show transform controls again
+  selectElement.style.display = 'block';
+  // do not force button state changes here; keep whatever state previously set
+  replaceHeadlineButton && (replaceHeadlineButton.style.display = 'inline-block');
+}
+
+function updateCountsAndErrors(clearOnly?: boolean): void {
+  const originalLength = nhOriginal?.value.length ?? 0;
+  const replacementLength = nhReplacement?.value.length ?? 0;
+
+  if (nhOriginalCount)
+    nhOriginalCount.textContent = `${originalLength} / ${MAX_HEADLINE_LENGTH}`;
+  if (nhReplacementCount)
+    nhReplacementCount.textContent = `${replacementLength} / ${MAX_HEADLINE_LENGTH}`;
+
+  if (clearOnly) {
+    if (nhOriginalError) nhOriginalError.style.display = 'none';
+    if (nhReplacementError) nhReplacementError.style.display = 'none';
+    if (nhCitationsError) nhCitationsError.style.display = 'none';
+    return;
+  }
+}
+
+function validateNewHeadlineForm(): {
+  originalHeadline?: string;
+  replacementHeadline?: string;
+  citations?: string;
+} {
+  const errors: { originalHeadline?: string; replacementHeadline?: string; citations?: string } = {};
+  const original = nhOriginal?.value ?? '';
+  const replacement = nhReplacement?.value ?? '';
+  if (!original.trim()) {
+    errors.originalHeadline = 'Original headline is required.';
+  } else if (original.length > MAX_HEADLINE_LENGTH) {
+    errors.originalHeadline = `Original headline must be at most ${MAX_HEADLINE_LENGTH} characters.`;
+  }
+  if (!replacement.trim()) {
+    errors.replacementHeadline = 'Replacement headline is required.';
+  } else if (replacement.length > MAX_HEADLINE_LENGTH) {
+    errors.replacementHeadline = `Replacement headline must be at most ${MAX_HEADLINE_LENGTH} characters.`;
+  }
+  const hasCitation = citations.some((c) => c.url.trim() !== '');
+  if (!hasCitation) {
+    errors.citations = 'At least one citation URL is required.';
+  }
+
+  // display errors
+  if (nhOriginalError) {
+    nhOriginalError.textContent = errors.originalHeadline ?? '';
+    nhOriginalError.style.display = errors.originalHeadline ? 'block' : 'none';
+  }
+  if (nhReplacementError) {
+    nhReplacementError.textContent = errors.replacementHeadline ?? '';
+    nhReplacementError.style.display = errors.replacementHeadline ? 'block' : 'none';
+  }
+  if (nhCitationsError) {
+    nhCitationsError.textContent = errors.citations ?? '';
+    nhCitationsError.style.display = errors.citations ? 'block' : 'none';
+  }
+
+  return errors;
+}
+
+function renderCitations(): void {
+  if (!nhCitationsContainer) return;
+  // clear existing
+  nhCitationsContainer.innerHTML = '';
+
+  citations.forEach((citation, idx) => {
+    const wrapper = document.createElement('div');
+    wrapper.style.marginBottom = '8px';
+
+    const urlInput = document.createElement('input');
+    urlInput.type = 'text';
+    urlInput.placeholder = 'https://...';
+    urlInput.value = citation.url;
+    urlInput.style.width = '100%';
+    urlInput.style.boxSizing = 'border-box';
+    urlInput.addEventListener('input', (e) => {
+      const value = (e.target as HTMLInputElement).value;
+      citations[idx] = { ...citations[idx], url: value };
+      if (idx === citations.length - 1 && value.trim() !== '') {
+        citations.push({ url: '', explanation: '' });
+      }
+      trimTrailingEmptyCitations();
+      renderCitations();
+      // keep any citations error visibility consistent
+      if (nhCitationsError) nhCitationsError.style.display = 'none';
+    });
+    wrapper.appendChild(urlInput);
+
+    const explanationArea = document.createElement('textarea');
+    explanationArea.placeholder = 'Optional explanation (e.g. what this citation supports)';
+    explanationArea.value = citation.explanation;
+    explanationArea.rows = 2;
+    explanationArea.style.width = '100%';
+    explanationArea.style.boxSizing = 'border-box';
+    explanationArea.style.fontSize = '12px';
+    explanationArea.style.marginTop = '4px';
+    explanationArea.addEventListener('input', (e) => {
+      const value = (e.target as HTMLTextAreaElement).value;
+      citations[idx] = { ...citations[idx], explanation: value };
+    });
+    wrapper.appendChild(explanationArea);
+
+    nhCitationsContainer.appendChild(wrapper);
+  });
+}
+
+function trimTrailingEmptyCitations(): void {
+  while (
+    citations.length > 1 &&
+    citations[citations.length - 1].url === '' &&
+    citations[citations.length - 2].url === ''
+  ) {
+    citations.pop();
   }
 }
