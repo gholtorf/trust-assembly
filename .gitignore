@@ -163,3 +163,11 @@ cython_debug/
 
 # Mac Crap
 .DS_Store
+
+# Docker offline cache
+.docker-cache/
+*.tar
+
+# Offline build scripts (keep tracked for reference)
+# build-offline.sh
+# run-offline.sh
