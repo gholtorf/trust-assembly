@@ -1,32 +1,31 @@
-import { useState } from "react"
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import Page from "./components/Page";
 
 export default function Index() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <Page>
+      <div className="hero-bg">
+        <div className="flex flex-col items-center hero">
+          <div className="hero-text">Repair the Headlines.</div>
+          <div className="hero-text">Rebuild the Narrative.</div>
+          <div className="hero-button">Get Started</div>
+        </div>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
+      <div className="flex flex-col md:flex-row justify-between text-lg small-width">
+        <div className="column">
+          <div>Trending Replacements</div>
+          <ul className="my-5 pl-5 list-disc">
+            <li>New York Times: ...</li>
+            <li>Fox News: ...</li>
+          </ul>
+        </div>
+        <div className="column">
+          <div>Recently Adjudicated</div>
+          <ul className="my-5 pl-5 list-disc">
+            <li>CNN: ...</li>
+            <li>BBC: ...</li>
+          </ul>
+        </div>
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    </Page>
   )
 }

@@ -3,95 +3,26 @@ import { cors } from "@hono/hono/cors";
 import { logger } from "@hono/hono/logger";
 import { poweredBy } from "@hono/hono/powered-by";
 import { extract } from '@extractus/article-extractor';
-import { serveStatic } from "@hono/hono/serve-static";
-import { trimTrailingSlash } from '@hono/hono/trailing-slash'
-import { createMiddleware } from '@hono/hono/factory'
-import BasicDbRepo from "./basicDbRepo.ts";
 
-type Env = {
-  Variables: {
-    db: BasicDbRepo
-  },
-};
-
-const app = new Hono<Env>();
-
-app.get("/api/transformedHeadline", async (c) => {
-  const url = c.req.query("url");
-  const author = c.req.query("author");
-
-  if (!url || !author) {
-    c.status(400);
-    return c.json({ error: "URL and author are required" });
-  }
-
-  try {
-    // First parse the article
-    const parsed = await extract(url);
-    if (!parsed || !parsed.title || !parsed.content) {
-      c.status(400);
-      return c.json({ error: "Could not parse article" });
-    }
-
-    // Prepare the command to transform the headline
-    const command = new Deno.Command("transform-headline", {
-      args: [
-        "--headline", parsed.title,
-        "--author", author,
-        "--body", parsed.content,
-        "--output-format", "json",
-        "--provider", "openai"
-      ]
-    });
-
-    // Run the command and get the output
-    const { stdout, stderr, success } = await command.output();
-
-    if (!success) {
-      const errorMessage = new TextDecoder().decode(stderr);
-      c.status(500);
-      return c.json({ error: `Headline transformation failed: ${errorMessage}` });
-    }
-
-    // Parse the JSON output from the command
-    const result = JSON.parse(new TextDecoder().decode(stdout));
-    return c.json(result);
-  } catch (error) {
-    c.status(500);
-    return c.json({ error: `Error processing request: ${error.message}` });
-  }
-});
-
-const dbMiddleware = createMiddleware(async (c, next) => {
-  using db = await BasicDbRepo.create();
-  c.set('db', db);
-  await next()
-})
-
-app.use("/api/*", dbMiddleware);
-
-const corsPolicy = cors({
-  origin: ["*"], // TODO: Change this to trust-assembly.org, or whatever URL we're using frontend URL
-  allowMethods: ["POST", "GET", "OPTIONS"],
-  allowHeaders: ["Content-Type"],
-  exposeHeaders: ["Content-Length"],
-  maxAge: 600,
-  credentials: true,
-});
+const app = new Hono();
 
 app.use("*", logger(), poweredBy());
 app.use(
   "*",
-  corsPolicy,
+  cors({
+    origin: ["*"], // TODO: Change this to trust-assembly.org, or whatever URL we're using frontend URL
+    allowMethods: ["POST", "GET", "OPTIONS"],
+    allowHeaders: ["Content-Type"],
+    exposeHeaders: ["Content-Length"],
+    maxAge: 600,
+    credentials: true,
+  })
 );
-
-app.use(trimTrailingSlash());
-
-app.get("/api", (c) => {
+app.get("/", (c: Context) => {
   return c.text("Hello Deno!");
 });
 
-app.get("/api/parsedArticle", async (c) => {
+app.get("/parsedArticle", async (c: Context) => {
   const url = c.req.query("url");
   if (!url) {
     c.status(400);
@@ -101,54 +32,24 @@ app.get("/api/parsedArticle", async (c) => {
   return c.json(parsed);
 });
 
-app.get("/api/db-test", async (c) => {
-  const dbClient = c.var.db;
-  const result = await dbClient.getAllCreatorEdits("https://www.cnn.com/2024/12/05/politics/john-roberts-transgender-skrmetti-analysis");
-  return c.json(result);
+const v1Api = new Hono();
+
+const transformHeadline = (headline: string): Promise<string> => {
+  // TODO: Implement the logic to transform the headline using OpenAI
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(headline.toUpperCase());
+    }, 100); // Simulating some asynchronous operation
+  });
+};
+
+v1Api.post("/headline", async (c: Context) => {
+  const { headline } = await c.req.json();
+
+  const transformedText = await transformHeadline(headline);
+  return c.json({ transformedText });
 });
 
-const v1Api = new Hono<Env>();
-v1Api.use(
-  "*",
-  corsPolicy
-);
-
-type HeadlineData = {
-  headline: string;
-  creator: string;
-}
-
-function cleanUrl(url: string) {
-  return url.replace(/\/(index.html)?\/?$/, "");
-}
-
-v1Api.post("/headlines", async (c) => {
-  const { url } = await c.req.json();
-  const dbClient = c.var.db;
-
-  const headlineData = await dbClient.getAllCreatorEdits(cleanUrl(url));
-  return c.json(headlineData);
-});
-
-app.route("/api/v1", v1Api);
-
-app.use("/api/*", async (c) => {
-  c.status(404);
-  return c.json({ error: "Not found" });
-});
-
-// all non-api routes are served from the dist folder where
-// the Vite build output is located (react frontend)
-app.use("*", serveStatic({
-  root: "./dist",
-  getContent: async (path) => {
-    console.log("Reading file", path);
-    try {
-      return await Deno.readFile(path);
-    } catch {
-      return await Deno.readFile("dist/index.html");
-    }
-  }
-}));
+app.route("/v1", v1Api);
 
 Deno.serve(app.fetch);
