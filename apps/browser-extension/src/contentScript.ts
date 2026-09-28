@@ -1,8 +1,15 @@
+import { retrieveStoredResult } from './api/backendApi';
 import { MessagePayload } from './models/MessagePayload';
 import ArticleStateManager from './utils/ArticleStateManager';
 import { TrustAssemblyMessage } from './utils/messagePassing';
 
 console.log('Trust Assembly Headline Transformer content script loaded.');
+
+//todo 
+//1. check if headline already exists in main db
+//2. if it does not send details of article (find URLs, headlines, authors, publication dates, and page html)
+//3. on server, get replacement and send to user
+//4. replacement
 
 function findHeadlineElement() {
   const selectors = [
@@ -50,6 +57,12 @@ let modifiedHeadline: string | undefined;
   if (!elementToModify) return;
   
   await stateManager.setElement(elementToModify);
+  const storedArticle = await retrieveStoredResult("Default");
+  if(!storedArticle) {
+    console.log("no default transformation");
+	
+  }
+  stateManager.setModifiedHeadline(modifiedHeadline);
 
   elementToModify.addEventListener('click', () =>
     stateManager.toggleModification(modifiedHeadline),

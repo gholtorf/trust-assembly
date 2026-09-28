@@ -1,4 +1,4 @@
-import { getTransformation, getCurrentUrl } from './api/backendApi';
+import { getTransformation, getCurrentUrl, retrieveStoredResult, storeResult } from './api/backendApi';
 import { MessagePayload } from './models/MessagePayload';
 import { TransformedArticle } from './models/TransformedArticle';
 import { TrustAssemblyMessage } from './utils/messagePassing';
@@ -79,29 +79,6 @@ async function getHeadlineData(
     await storeResult(author, data);
   }
   return data;
-}
-
-async function retrieveStoredResult(
-  author: string,
-): Promise<TransformedArticle | undefined> {
-  const key = keyFn(author);
-  const storedData = (await chrome.storage.session.get(key))[key];
-
-  if (!storedData) {
-    return undefined;
-  }
-
-  return JSON.parse(storedData) as TransformedArticle;
-}
-
-function storeResult(author: string, data: TransformedArticle): Promise<void> {
-  return chrome.storage.session.set({
-    [keyFn(author)]: JSON.stringify(data),
-  });
-}
-
-function keyFn(author: string): string {
-  return `${STORED_DATA}:${currentUrl}:${author}`;
 }
 
 async function setModifiedHeadline(): Promise<void> {
